@@ -48,15 +48,15 @@ func main() {
 	db := tb.DB()
 	log.Print(db)
 
-	//err := CreateSchema(db)
-	//if err != nil {
-	//	panic(err)
-	//}
+	err := CreateSchema(db)
+	if err != nil {
+		panic(err)
+	}
 	user1 := &tb.User{
 		Username: "admin",
 		Email:    "admin1@admin",
 	}
-	err := db.Insert(user1)
+	err = db.Insert(user1)
 	if err != nil {
 		panic(err)
 	}
@@ -113,22 +113,30 @@ func postLoginEndpoint(c *gin.Context) {
 		panic(err)
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(password), []byte(users[0].HashedPassword))
+	if len(users) == 0 {
+		var errMsg struct {
+			Success bool
+			Error string
+		}
+		errMsg.Success = false
+		errMsg.Error = "Invalid Username/Password"
+		c.JSON(http.StatusTeapot, errMsg)
+		return
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(users[0].HashedPassword), []byte(password))
 
 	var msg struct {
 		Username       string
 		Password       string
 		User           tb.User
 		CompareSuccess bool
-		E              error
 	}
 
 	msg.Username = username
 	msg.Password = password
 	msg.User = users[0]
-	msg.CompareSuccess = err != nil
-	msg.E = err
-	log.Println(err)
+	msg.CompareSuccess = err == nil
 
 	c.JSON(http.StatusOK, msg)
 }
@@ -145,7 +153,29 @@ func getLoginEndpoint(c *gin.Context) {
 func postSignupEndpoint(c *gin.Context) {
 
 	username := c.PostForm("username")
+	if username == "" {
+		var errMsg struct {
+			Success bool
+			Error   string
+		}
+		errMsg.Success = false
+		errMsg.Error = "Username is empty"
+		c.JSON(http.StatusTeapot, errMsg)
+		return
+	}
+
 	password := c.PostForm("password")
+	if password == "" {
+		var errMsg struct {
+			Success bool
+			Error   string
+		}
+		errMsg.Success = false
+		errMsg.Error = "Password is empty"
+		c.JSON(http.StatusTeapot, errMsg)
+		return
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
 
 	msg := &tb.User{
