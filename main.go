@@ -45,15 +45,15 @@ func main() {
 	db := tb.DB()
 	log.Print(db)
 
-	err := CreateSchema(db)
-	if err != nil {
-		panic(err)
-	}
+	//err := CreateSchema(db)
+	//if err != nil {
+	//	panic(err)
+	//}
 	user1 := &tb.User{
 		Username:   "admin",
 		Email: "admin1@admin",
 	}
-	err = db.Insert(user1)
+	err := db.Insert(user1)
 	if err != nil {
 		panic(err)
 	}
@@ -74,6 +74,9 @@ func main() {
 
 	// Recovery middleware recovers from any panics and writes a 500 if there was one.
 	r.Use(gin.Recovery())
+
+	r.Static("/public", "./public")
+	r.LoadHTMLGlob("templates/*")
 
 	// Authorization group
 	// authorized := r.Group("/", AuthRequired())
@@ -96,17 +99,11 @@ func postLoginEndpoint(c *gin.Context) {
 
 
 
-	c.Redirect(http.StatusTemporaryRedirect, "/")
+	c.Redirect(http.StatusOK, "/")
 }
 
 func getLoginEndpoint(c *gin.Context) {
-	var msg struct {
-		Endpoint string
-	}
-	msg.Endpoint = "loginEndpoint"
-
-	c.JSON(http.StatusOK, msg)
-
+	c.HTML(http.StatusOK, "index.tmpl", gin.H{})
 }
 
 func homepageEndpoint(c *gin.Context) {
