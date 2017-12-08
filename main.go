@@ -2,12 +2,15 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 
-	"github.com/gorilla/sessions"
 	"log"
 	"net/http"
 	tb "twitchboard/twitchboard"
+
 	"github.com/go-pg/pg"
+	"github.com/go-pg/pg/orm"
+	"github.com/gorilla/sessions"
 )
 
 var store = sessions.NewCookieStore([]byte("something-very-secret"))
@@ -28,15 +31,15 @@ func CreateSession(c *gin.Context) {
 
 func CreateSchema(db *pg.DB) error {
 	for _, model := range []interface{}{&tb.User{}} {
-		err := db.CreateTable(model, nil)
+		err := db.CreateTable(model, &orm.CreateTableOptions{
+			IfNotExists: true,
+		})
 		if err != nil {
 			return err
 		}
 	}
 	return nil
-
 }
-
 
 func main() {
 	// Creates a router without any middleware by default
@@ -50,8 +53,8 @@ func main() {
 	//	panic(err)
 	//}
 	user1 := &tb.User{
-		Username:   "admin",
-		Email: "admin1@admin",
+		Username: "admin",
+		Email:    "admin1@admin",
 	}
 	err := db.Insert(user1)
 	if err != nil {
@@ -65,7 +68,6 @@ func main() {
 	}
 
 	log.Println(users)
-
 
 	// Global middleware
 	// Logger middleware will write the logs to gin.DefaultWriter even you set with GIN_MODE=release.
@@ -89,6 +91,8 @@ func main() {
 		authorized.GET("/", homepageEndpoint)
 	}
 
+	r.POST("/signup", postSignupEndpoint)
+
 	r.POST("/login", postLoginEndpoint)
 	r.GET("/login", getLoginEndpoint)
 	// Listen and serve on 0.0.0.0:8080
@@ -97,13 +101,67 @@ func main() {
 
 func postLoginEndpoint(c *gin.Context) {
 
+	username := c.PostForm("username")
+	password := c.PostForm("password")
 
+	db := tb.DB()
+	var users []tb.User
+	err := db.Model(&users).
+		Where("username = ?", username).
+		Select()
+	if err != nil {
+		panic(err)
+	}
 
-	c.Redirect(http.StatusOK, "/")
+	err = bcrypt.CompareHashAndPassword([]byte(password), []byte(users[0].HashedPassword))
+
+	var msg struct {
+		Username       string
+		Password       string
+		User           tb.User
+		CompareSuccess bool
+		E              error
+	}
+
+	msg.Username = username
+	msg.Password = password
+	msg.User = users[0]
+	msg.CompareSuccess = err != nil
+	msg.E = err
+	log.Println(err)
+
+	c.JSON(http.StatusOK, msg)
 }
 
 func getLoginEndpoint(c *gin.Context) {
-	c.HTML(http.StatusOK, "index.tmpl", gin.H{})
+	var msg struct {
+		Endpoint string
+	}
+	msg.Endpoint = "loginEndpoint"
+
+	c.JSON(http.StatusOK, msg)
+}
+
+func postSignupEndpoint(c *gin.Context) {
+
+	username := c.PostForm("username")
+	password := c.PostForm("password")
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+
+	msg := &tb.User{
+		Username:       username,
+		Password:       password,
+		Email:          "dkljf",
+		HashedPassword: string(hashedPassword),
+	}
+	db := tb.DB()
+
+	err = db.Insert(msg)
+	if err != nil {
+		panic(err)
+	}
+
+	c.JSON(http.StatusOK, msg)
 }
 
 func homepageEndpoint(c *gin.Context) {
@@ -115,7 +173,6 @@ func homepageEndpoint(c *gin.Context) {
 	c.JSON(http.StatusOK, msg)
 
 }
-
 
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {

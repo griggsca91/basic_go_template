@@ -2,13 +2,14 @@ package twitchboard
 
 import (
 	"golang.org/x/crypto/bcrypt"
-	)
+)
 
 type User struct {
-	Id int64
-	Username string `sql:",pk"`
+	Id             int64
+	Username       string `sql:",pk"`
 	HashedPassword string
-	Email string `sql:",pk"`
+	Password       string `-`
+	Email          string `sql:",pk"`
 }
 
 func ValidateCredentials(username, password string) bool {
@@ -19,8 +20,6 @@ func ValidateCredentials(username, password string) bool {
 }
 
 func GetUser(username string) *User {
-
-
 
 	return nil
 }
