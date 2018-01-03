@@ -6,10 +6,7 @@ import (
 
 	"log"
 	"net/http"
-	tb "twitchboard/twitchboard"
 
-	"github.com/go-pg/pg"
-	"github.com/go-pg/pg/orm"
 	"github.com/gorilla/sessions"
 )
 
@@ -29,45 +26,35 @@ func CreateSession(c *gin.Context) {
 	session.Save(c.Request, c.Writer)
 }
 
-func CreateSchema(db *pg.DB) error {
-	for _, model := range []interface{}{&tb.User{}} {
-		err := db.CreateTable(model, &orm.CreateTableOptions{
-			IfNotExists: true,
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func main() {
 	// Creates a router without any middleware by default
 	r := gin.New()
 
-	db := tb.DB()
+	db := DB()
 	log.Print(db)
 
 	err := CreateSchema(db)
 	if err != nil {
 		panic(err)
 	}
-	user1 := &tb.User{
-		Username: "admin",
-		Email:    "admin1@admin",
+	game1 := &Game{
+		Name: "ff7",
+	}
+	err = db.Insert(game1)
+	if err != nil {
+		panic(err)
+	}
+
+	user1 := &User{
+		Username: "cgriggs",
+		Email:    "cgriggs@gmail.com",
 	}
 	err = db.Insert(user1)
 	if err != nil {
 		panic(err)
 	}
 
-	var users []tb.User
-	err = db.Model(&users).Select()
-	if err != nil {
-		panic(err)
-	}
-
-	log.Println(users)
+	user1.TrackGame(game1)
 
 	// Global middleware
 	// Logger middleware will write the logs to gin.DefaultWriter even you set with GIN_MODE=release.
@@ -104,8 +91,8 @@ func postLoginEndpoint(c *gin.Context) {
 	username := c.PostForm("username")
 	password := c.PostForm("password")
 
-	db := tb.DB()
-	var users []tb.User
+	db := DB()
+	var users []User
 	err := db.Model(&users).
 		Where("username = ?", username).
 		Select()
@@ -116,7 +103,7 @@ func postLoginEndpoint(c *gin.Context) {
 	if len(users) == 0 {
 		var errMsg struct {
 			Success bool
-			Error string
+			Error   string
 		}
 		errMsg.Success = false
 		errMsg.Error = "Invalid Username/Password"
@@ -129,7 +116,7 @@ func postLoginEndpoint(c *gin.Context) {
 	var msg struct {
 		Username       string
 		Password       string
-		User           tb.User
+		User           User
 		CompareSuccess bool
 	}
 
@@ -178,13 +165,13 @@ func postSignupEndpoint(c *gin.Context) {
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
 
-	msg := &tb.User{
+	msg := &User{
 		Username:       username,
 		Password:       password,
 		Email:          "dkljf",
 		HashedPassword: string(hashedPassword),
 	}
-	db := tb.DB()
+	db := DB()
 
 	err = db.Insert(msg)
 	if err != nil {
